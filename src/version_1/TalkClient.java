@@ -21,19 +21,17 @@ public class TalkClient {
 			System.out.print("登录名：");
 			readline=sin.readLine();	//输入登录名
 			os.println(readline);
-			System.out.print("接收者：");
-			readline=sin.readLine();	//输入接收者
-			os.println(readline);
 			os.flush();
+			System.out.println(is.readLine());
 
 			while(!readline.equals("bye")){//若从标准输入读入的字符串为 "bye"则停止循环
-				System.out.print("消息：");
+				System.out.print("输入：");
 				readline = sin.readLine();	//输入消息
 				os.println(readline);
 				os.flush();//刷新输出流，使Server马上收到该字符串
 
 				//从Server读入一字符串，并打印到标准输出上
-				System.out.println("Server:"+is.readLine());
+				System.out.println(is.readLine());
 			} //继续循环
 			os.close(); //关闭Socket输出流
 			is.close(); //关闭Socket输入流

@@ -33,24 +33,26 @@ public class ServerThread extends Thread{
 			String clientName_1 = is_1.readLine();
 			String clientName_2 = is_2.readLine();
 //			line=sin.readLine();
-			String message_1 = is_1.readLine();
-			String message_2 = message_1;
+			String message_1 = "hello";
+			String message_2 = "hello";
 			while((!message_1.equals("bye"))&&(!message_2.equals("bye"))) {//如果该字符串为 "bye"，则停止循环
-				message_2 = is_2.readLine();
-				os_1.println(message_2);
+				os_1.println(clientName_2 + ": " + message_2);
 				os_1.flush();
+				System.out.println(clientName_2 + ": " + message_2);
 				message_1 = is_1.readLine();
-				os_2.println(message_1);
+				os_2.println(clientName_1 + ": " + message_1);
 				os_2.flush();
-				//在系统标准输出上打印该字符串
-				System.out.println("Server:"+line);
-				//从Client读入一字符串，并打印到标准输出上
-				System.out.println("Client:"+ clientnum +is.readLine());
-				line=sin.readLine();//从系统标准输入读入一字符串
+				System.out.println(clientName_1 + ": " + message_1);
+				message_2 = is_2.readLine();
 			}//继续循环
-			os.close(); //关闭Socket输出流
-			is.close(); //关闭Socket输入流
-			socket.close(); //关闭Socket
+			os_1.println(clientName_2 + ": " + message_2);
+			os_1.flush();
+			os_1.close(); //关闭Socket输出流
+			os_2.close(); //关闭Socket输出流
+			is_1.close(); //关闭Socket输入流
+			is_2.close(); //关闭Socket输入流
+			client_1.close(); //关闭Socket
+			client_2.close();
 		}catch(Exception e){
 			System.out.println("Error:"+e);//出错，打印出错信息
 		}
