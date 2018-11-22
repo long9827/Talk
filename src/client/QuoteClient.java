@@ -6,18 +6,63 @@ import java.net.*;
 public class QuoteClient {
     public static void main(String[] args) throws IOException {
         DatagramSocket socket = new DatagramSocket();
-        byte[] buf = new byte[256];
-
         BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
-        buf = (in.readLine() + "\n" + "hello").getBytes();
+        System.out.print("用户名：");
+        String name = in.readLine();
+        new Thread(new Send(name, socket)).start();
+        new Thread(new Receive(socket));
 
-        InetAddress address = InetAddress.getLocalHost();
-        DatagramPacket packet = new DatagramPacket(buf, buf.length, address, 4445);
-        socket.send(packet);
-        packet = new DatagramPacket(buf, buf.length);
-        socket.receive(packet);
-        String received = new String(packet.getData());
-        System.out.println("Quote of the Moment: " + received);
-        socket.close();
+    }
+}
+
+class Send implements Runnable {
+    private String name;
+    private DatagramSocket socket;
+    private byte[] buf = new byte[256];
+
+
+    public Send(String name, DatagramSocket socket) {
+        this.name = name;
+        this.socket = socket;
+    }
+
+    @Override
+    public void run(){
+        try {
+            while (true) {
+                BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
+                String message = name + "\n" + in.readLine() + "\n" + in.readLine() + "\n";
+                System.out.println("#" + message + "#");
+                buf = message.getBytes();
+                InetAddress address = InetAddress.getLocalHost();
+                DatagramPacket packet = new DatagramPacket(buf, buf.length, address, 4445);
+                socket.send(packet);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+class Receive implements Runnable {
+    private byte[] buf = new byte[256];
+    private DatagramSocket socket;
+
+    public Receive(DatagramSocket socket) {
+        this.socket = socket;
+    }
+
+    @Override
+    public void run() {
+        try {
+            while (true) {
+                DatagramPacket packet = new DatagramPacket(buf, buf.length);
+                socket.receive(packet);
+                String received = new String(packet.getData());
+                System.out.println(received);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }

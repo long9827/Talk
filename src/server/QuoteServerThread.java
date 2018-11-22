@@ -29,6 +29,7 @@ public class QuoteServerThread extends Thread {
                 String sender = in.readLine();
                 String receiver = in.readLine();
                 String message = in.readLine();
+                System.out.println(message);
                 if (client.get(sender)==null) {
                     client.put(sender, new Client(sender, packet.getAddress(), packet.getPort()));
                 }
