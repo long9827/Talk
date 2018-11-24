@@ -10,7 +10,7 @@ public class QuoteClient {
         System.out.print("用户名：");
         String name = in.readLine();
         new Thread(new Send(name, socket)).start();
-        new Thread(new Receive(socket));
+        new Thread(new Receive(socket)).start();
 
     }
 }
@@ -29,13 +29,18 @@ class Send implements Runnable {
     @Override
     public void run(){
         try {
+            String message = name + "\nSystem\nlogin\n";
+            buf = message.getBytes();
+            InetAddress address = InetAddress.getLocalHost();
+            DatagramPacket packet = new DatagramPacket(buf, buf.length, address, 4445);
+            socket.send(packet);
+
             while (true) {
                 BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
-                String message = name + "\n" + in.readLine() + "\n" + in.readLine() + "\n";
-                System.out.println("#" + message + "#");
+                message = name + "\n" + in.readLine() + "\n" + in.readLine() + "\n";
+//                System.out.println("#" + message + "#");
                 buf = message.getBytes();
-                InetAddress address = InetAddress.getLocalHost();
-                DatagramPacket packet = new DatagramPacket(buf, buf.length, address, 4445);
+                packet = new DatagramPacket(buf, buf.length, address, 4445);
                 socket.send(packet);
             }
         } catch (IOException e) {

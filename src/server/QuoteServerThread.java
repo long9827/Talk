@@ -29,18 +29,21 @@ public class QuoteServerThread extends Thread {
                 String sender = in.readLine();
                 String receiver = in.readLine();
                 String message = in.readLine();
-                System.out.println(message);
-                if (client.get(sender)==null) {
+//                System.out.println(message);
+                if (receiver.equals("System")) {
+//                    System.out.println("sender null");
                     client.put(sender, new Client(sender, packet.getAddress(), packet.getPort()));
+                    continue;
                 }
                 Client receiverClient = client.get(receiver);
                 if (receiverClient == null) {
-                    String string = "System\n" +  receiver + " not found!\n";
+//                    System.out.println("receiver null");
+                    String string = "System: " +  receiver + " not found!\n";
                     buf = string.getBytes();
                     packet = new DatagramPacket(buf, buf.length, client.get(sender).getAddress(), client.get(sender).getPort());
                     socket.send(packet);
                 } else {
-                    String string = sender + "\n" + message + "\n";
+                    String string = sender + ": " + message;
                     buf = string.getBytes();
                     packet = new DatagramPacket(buf, buf.length, receiverClient.getAddress(), receiverClient.getPort());
                     socket.send(packet);
