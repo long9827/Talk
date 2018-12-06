@@ -1,6 +1,7 @@
+import client.Login;
+
 public class Test {
     public static void main(String[] args) {
-        String str = "hello" + "\n" + "hello";
-        System.out.println(str);
+        new Login().setVisible(true);
     }
 }

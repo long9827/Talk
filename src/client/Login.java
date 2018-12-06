@@ -7,51 +7,47 @@ import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
-public class Login extends JFrame {
-    private Container container;
-    private JPanel jPanel = new JPanel();
-    private JButton jButton = new JButton();
-    private JTextField userName = new JTextField();
+public class Login extends JFrame implements ActionListener {
+    private JTextField userName;
+    private JButton loginButton;
 
     public Login() {
-        jbInit();
+        setTitle("登录");
+        setSize(300, 180);
+        setLocationRelativeTo(null);    //窗口居中
+        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        setLayout(new FlowLayout());
+
+        JPanel jPanel = new JPanel(new GridLayout(2, 1));
+
+        JPanel inputPanel = new JPanel();
+        userName = new JTextField(6);
+        inputPanel.add(new JLabel("用户名 "));
+        inputPanel.add(userName);
+        jPanel.add(inputPanel);
+
+        JPanel buttonPanel = new JPanel();
+        loginButton = new JButton("登录");
+        loginButton.addActionListener(this);
+        buttonPanel.add(loginButton);
+        jPanel.add(buttonPanel);
+
+        add(jPanel);
+
     }
-    private void jbInit() {
-        int windowWidth = 350;
-        int windowHeight = 250;
-        container = getContentPane();
-        this.setSize(new Dimension(windowWidth, windowHeight));
-        Toolkit toolkit = Toolkit.getDefaultToolkit();
-        Dimension screenSize = toolkit.getScreenSize();
-        int screenWidth = screenSize.width;
-        int screenHeight = screenSize.height;
-        this.setLocation((screenWidth-windowWidth)/2, (screenHeight-windowHeight)/2);
-        this.setTitle("登录");
-        jButton.setText("登录");
-        jButton.setBounds(0,0, 30, 30);
-        userName.setText("           ");
-        userName.setBounds(30, 0, 50, 30);
-//        container.add(jTextField);
-        jPanel.add(jButton);
-        jPanel.add(userName);
-        this.add(jPanel);
-        this.setVisible(true);
-        jButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                System.out.println(userName.getText());
-            }
-        });
+
+    public void actionPerformed(ActionEvent e) {
+        String name = userName.getText();
+        if (!name.equals("")) {
+            System.out.println(name);
+            setVisible(false);
+            new MainFrame(name).setVisible(true);
+            dispose();
+        }
     }
 
     public static void main(String[] args) {
-        Login login = new Login();
-        login.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-                System.exit(0);
-            }
-        });
+        new Login().setVisible(true);
     }
 
 }
