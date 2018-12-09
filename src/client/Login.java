@@ -4,12 +4,17 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.InputStreamReader;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 
 public class Login extends JFrame implements ActionListener {
     private JTextField userName;
     private JButton loginButton;
+    private DatagramSocket socket;
 
     public Login() {
         setTitle("登录");
@@ -34,16 +39,55 @@ public class Login extends JFrame implements ActionListener {
 
         add(jPanel);
 
+//        try {
+//            socket = new DatagramSocket();
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
     }
 
     public void actionPerformed(ActionEvent e) {
         String name = userName.getText();
         if (!name.equals("")) {
             System.out.println(name);
-            setVisible(false);
-            new MainFrame(name).setVisible(true);
-            dispose();
+            if (connect(name)) {
+                //登录成功
+                setVisible(false);
+                new MainFrame(name, socket).setVisible(true);
+                dispose();
+            }
         }
+    }
+
+    private boolean connect(String name) {
+        try {
+            socket = new DatagramSocket();
+            System.out.println("login: port" +socket.getPort());
+            String message = name + "\n" + "System\n" + "login\n";
+            byte[] buf = new byte[256];
+            buf = message.getBytes();
+            InetAddress address = InetAddress.getLocalHost();
+            DatagramPacket packet = new DatagramPacket(buf, buf.length, address, 4445);
+            socket.send(packet);
+            socket.receive(packet);
+            String received;
+            // = new String(packet.getData());
+            BufferedReader in = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(packet.getData())));
+//            String sender = in.readLine();
+//            String receiver = in.readLine();
+//            String message = in.readLine();
+            received = in.readLine();
+            received = in.readLine();
+            received = in.readLine();
+            System.out.println(received);
+            if (received.equals("true")) {
+                return true;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return false;
     }
 
     public static void main(String[] args) {
