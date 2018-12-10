@@ -30,15 +30,12 @@ public class QuoteServerThread extends Thread {
                 byte[] buf = new byte[256];
                 DatagramPacket packet = new DatagramPacket(buf, buf.length);
                 socket.receive(packet);
-                BufferedReader in = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(packet.getData())));
+                BufferedReader in = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(packet.getData()), "utf-8"));
                 String sender = in.readLine();
                 String receiver = in.readLine();
-//                System.out.println(message);
                 if (receiver.equals("System")) {
                     //系统消息
                     String message = in.readLine();
-//                    System.out.println(message + "end");
-//                    System.out.println(message.equals("login"));
                     if (message.equals("login")) {
                         //请求登录
                         String string;
@@ -46,19 +43,20 @@ public class QuoteServerThread extends Thread {
                             if (clients.get(sender) == null) {
                                 //未登录
                                 clients.put(sender, new Client(sender, packet.getAddress(), packet.getPort()));
-                                System.out.println(sender + packet.getAddress() + packet.getPort());
+                                System.out.println(sender + " login");
                                 string = "System\n" + sender + "\n" + "true\n";
                             } else {
                                 //已登录
                                 string = "System\n" + sender + "\n" + "false\n";
                             }
                         }
-//                        System.out.println(string);
                         buf = string.getBytes();
                         DatagramPacket tmp = new DatagramPacket(buf, buf.length, packet.getAddress(), packet.getPort());
                         socket.send(tmp);
-
-                        socket.send(packet);
+//                        socket.send(packet);
+                    } else if (message.equals("logout")) {
+                        System.out.println(sender + " logout");
+                        clients.remove(sender);
                     }
 //                    System.out.println("sender null");
                     continue;
@@ -71,7 +69,7 @@ public class QuoteServerThread extends Thread {
                         stringBuffer.append(line);
                         stringBuffer.append("\n");
                     }
-//                    System.out.println(stringBuffer);
+                    System.out.println(stringBuffer);
                     //添加到未发送消息
                     synchronized (notSendMessages) {
                         Message message = new Message(sender, receiver, stringBuffer.toString());
@@ -172,8 +170,18 @@ class Send implements Runnable {
                             if (receiver != null) {
                                 //接收者在线
 //                                System.out
-                                System.out.println("接收者：" + receiver.getName() + "地址：" + receiver.getAddress() + "端口：" +receiver.getPort() );
-                                buf = current.toString().getBytes();
+//                                System.out.println("接收者：" + receiver.getName() + "地址：" + receiver.getAddress() + "端口：" +receiver.getPort() );
+                                try {
+//                                    System.out.println(current.toString());
+                                    buf = current.toString().getBytes("utf-8");
+//                                    System.out.println("buf: " + buf.toString());
+//                                    System.out.println("打印默认编码：" + current.toString().getBytes());
+//                                    System.out.println("打印unicode编码：" + current.toString().getBytes("unicode"));
+//                                    System.out.println("打印utf-8编码：" + current.toString().getBytes("utf-8"));
+
+                                }catch (Exception e) {
+                                    e.printStackTrace();
+                                }
                                 packet = new DatagramPacket(buf, buf.length, receiver.getAddress(), receiver.getPort());
                                 socket.send(packet);
                                 remove.add(key);
@@ -214,7 +222,7 @@ class Send implements Runnable {
                 }
                 try {
 //                    System.out.println("开始休眠");
-                    Thread.sleep(2000);
+                    Thread.sleep(500);
 //                    System.out.println("休眠结束");
                 } catch (Exception e) {
                     e.printStackTrace();

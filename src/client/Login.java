@@ -55,6 +55,9 @@ public class Login extends JFrame implements ActionListener {
                 setVisible(false);
                 new MainFrame(name, socket).setVisible(true);
                 dispose();
+            } else {
+                System.out.println("登录失败");
+                JOptionPane.showMessageDialog(null, "登录失败", "提示", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
@@ -62,7 +65,7 @@ public class Login extends JFrame implements ActionListener {
     private boolean connect(String name) {
         try {
             socket = new DatagramSocket();
-            System.out.println("login: port" +socket.getPort());
+//            System.out.println("login: port" +socket.getPort());
             String message = name + "\n" + "System\n" + "login\n";
             byte[] buf = new byte[256];
             buf = message.getBytes();
@@ -72,14 +75,14 @@ public class Login extends JFrame implements ActionListener {
             socket.receive(packet);
             String received;
             // = new String(packet.getData());
-            BufferedReader in = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(packet.getData())));
+            BufferedReader in = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(packet.getData()), "utf-8"));
 //            String sender = in.readLine();
 //            String receiver = in.readLine();
 //            String message = in.readLine();
             received = in.readLine();
             received = in.readLine();
             received = in.readLine();
-            System.out.println(received);
+//            System.out.println(received);
             if (received.equals("true")) {
                 return true;
             }

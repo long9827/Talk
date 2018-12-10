@@ -11,8 +11,6 @@ public class ChatRecordsPanel extends JPanel {
     public static final int SELF = 1;
     public static final int OTHER = 2;
 
-//    private ArrayList<MessageRecords> messageRecords = new ArrayList<>();
-
     public ChatRecordsPanel() {
         super();
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));

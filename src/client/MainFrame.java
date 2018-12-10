@@ -4,11 +4,8 @@ import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.AdjustmentEvent;
-import java.awt.event.AdjustmentListener;
-import java.io.IOException;
+import java.awt.event.*;
+import java.io.*;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -20,6 +17,7 @@ public class MainFrame extends JFrame {
 
     private DatagramSocket socket;
     private String username;
+    private DefaultListModel<String> friends;
 
     private JList<String> userList;
     private JPanel usersPanel;
@@ -32,24 +30,25 @@ public class MainFrame extends JFrame {
 
     private HashMap<String, ChatRecordsPanel> chatRecordsPanelHashMap = new HashMap<>();
 
-    //TODO：刷新联系人列表
-    private void refreshUsers() {
-        DefaultListModel<String> dlm = new DefaultListModel<>();
-        int random = (int) (Math.random()*500 + 1);
+    //TODO：初始化联系人列表
+    private void initUsers() {
+//        int random = (int) (Math.random()*500 + 1);
+        int random = 20;
         for (int i=0; i<random; ++i) {
-            dlm.addElement("user" + (i+1));
+            String name = "user" + (i+1);
+            friends.addElement(name);
+            chatRecordsPanelHashMap.put(name, new ChatRecordsPanel());
         }
-        userList.setModel(dlm);
+        userList.setModel(friends);
     }
 
     //TODO：发送消息
     private void sendMessage(String receiver, String message) {
         try {
             String string = username + "\n" + receiver + "\n" + message;
-            byte[] buf = string.getBytes();
+            byte[] buf = string.getBytes("utf-8");
             InetAddress address = InetAddress.getLocalHost();
             DatagramPacket packet = new DatagramPacket(buf, buf.length, address, 4445);
-//            System.out.println("#" + string + "#");
             socket.send(packet);
 
         }catch (Exception e) {
@@ -62,7 +61,14 @@ public class MainFrame extends JFrame {
         setTitle("聊天室");
         setMinimumSize(new Dimension(WIDTH, HEIGHT));
         setLocationRelativeTo(null);    //居中
-        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+//        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                sendMessage("System", "logout\n");
+                System.exit(0);
+            }
+        });
     }
 
     //TODO：设置联系人面板
@@ -81,7 +87,7 @@ public class MainFrame extends JFrame {
 
         //设置联系人列表
         userList = new JList<>();
-        refreshUsers();
+        initUsers();
         userList.setFixedCellHeight(19);
         JScrollPane scrollPane = new JScrollPane(userList);
         usersPanel.add(scrollPane, BorderLayout.CENTER);
@@ -96,11 +102,7 @@ public class MainFrame extends JFrame {
         refresh.addActionListener(new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                refreshUsers();
-                currentTalker.setText("请选择联系人");
-                sendButton.setVisible(false);
-                inputTF.setText("");
-                inputTF.setEditable(false);
+                System.out.println("刷新");
             }
         });
 
@@ -143,10 +145,7 @@ public class MainFrame extends JFrame {
         messageScrollPanel.getVerticalScrollBar().addAdjustmentListener(new AdjustmentListener() {
             @Override
             public void adjustmentValueChanged(AdjustmentEvent e) {
-//                System.out.println("e:" + e.getValueIsAdjusting());
-//                System.out.println(messageScrollPanel.adjust);
                 if (!messageScrollPanel.adjust &&!e.getValueIsAdjusting()) {
-
                     JScrollBar jScrollBar = messageScrollPanel.getVerticalScrollBar();
                     jScrollBar.setValue(jScrollBar.getMaximum());
                 }
@@ -178,7 +177,6 @@ public class MainFrame extends JFrame {
                     inputTF.setText("");
                     chatRecordsPanel.addMessage(ChatRecordsPanel.SELF, message);
                     sendMessage(currentTalker.getText(), message);
-//                    messageScrollPanel.setViewportView(chatRecordsPanel);
                 }
             }
         });
@@ -188,38 +186,59 @@ public class MainFrame extends JFrame {
     }
 
     public MainFrame(String username, DatagramSocket socket) {
+        this.friends =  new DefaultListModel<>();
+        this.socket = socket;
+        this.username = username;
         initMainFrame();
         setUserListPanel();
         setChatPanel();
 
         add(usersPanel, BorderLayout.WEST);
         add(chatPanel, BorderLayout.CENTER);
-        this.socket = socket;
-//        System.out.println("地址：" + socket.getPort());
-        this.username = username;
 
-        new Thread(new Receive(this.socket)).start();
+        new Thread(new Receive(this.socket, friends, chatRecordsPanelHashMap)).start();
     }
 }
-
 
 class Receive implements Runnable {
     private byte[] buf = new byte[256];
     private DatagramSocket socket;
+    private DefaultListModel<String> friends;
+    private HashMap<String, ChatRecordsPanel> chatRecordsPanelHashMap;
 
-    public Receive(DatagramSocket socket) {
+    public Receive(DatagramSocket socket, DefaultListModel<String> friends, HashMap<String, ChatRecordsPanel> chatRecordsPanelHashMap) {
         this.socket = socket;
+        this.friends = friends;
+        this.chatRecordsPanelHashMap = chatRecordsPanelHashMap;
     }
 
     @Override
     public void run() {
         try {
             while (true) {
-                System.out.println("地址：" + socket.getLocalAddress());
                 DatagramPacket packet = new DatagramPacket(buf, buf.length);
                 socket.receive(packet);
                 String received = new String(packet.getData());
-                System.out.println(received);
+                BufferedReader in = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(packet.getData()), "utf-8"));
+                String sender = in.readLine();
+                String receiver = in.readLine();
+                StringBuffer stringBuffer = new StringBuffer();
+                String line = in.readLine();
+                while (line != null) {
+                    stringBuffer.append(line);
+                    line = in.readLine();
+                    if (line != null) {
+                        stringBuffer.append("\n");
+                    }
+                }
+                System.out.println(stringBuffer);
+                chatRecordsPanelHashMap.get(sender).addMessage(ChatRecordsPanel.OTHER, stringBuffer.toString());
+                int index = 0;
+                while (index < friends.size() && !friends.getElementAt(index).equals(sender)) { ++index; }
+                if (friends.getElementAt(index).equals(sender)) {
+                    friends.remove(index);
+                    friends.add(0, sender);
+                }
             }
         } catch (IOException e) {
             e.printStackTrace();
