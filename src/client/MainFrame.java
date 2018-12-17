@@ -1,5 +1,8 @@
 package client;
 
+import common.FilesTransfer;
+import jdk.nashorn.internal.scripts.JO;
+
 import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
@@ -11,7 +14,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.HashMap;
 
-public class MainFrame extends JFrame {
+public class MainFrame extends JFrame implements ActionListener {
     static private final int WIDTH = 800;
     static private final int HEIGHT = 500;
 
@@ -25,8 +28,16 @@ public class MainFrame extends JFrame {
     private JLabel currentTalker;
     private JTextArea inputTF;
     private JButton sendButton;
+    private JButton sendFileButton;
     private ChatRecordsPanel chatRecordsPanel;
     private MyJScrollPane messageScrollPanel;
+
+    //发送文件
+    private JDialog dialog;
+    private JButton cancel;
+    private JButton selectFile;
+    private JButton sendFile;
+    private JTextField filePath;
 
     private HashMap<String, ChatRecordsPanel> chatRecordsPanelHashMap = new HashMap<>();
 
@@ -43,7 +54,7 @@ public class MainFrame extends JFrame {
     }
 
     //TODO：发送消息
-    private void sendMessage(String receiver, String message) {
+    void sendMessage(String receiver, String message) {
         try {
             String string = username + "\n" + receiver + "\n" + message;
             byte[] buf = string.getBytes("utf-8");
@@ -120,6 +131,7 @@ public class MainFrame extends JFrame {
                     messageScrollPanel.setViewportView(chatRecordsPanel);
                     inputTF.setEditable(true);
                     sendButton.setVisible(true);
+                    sendFileButton.setVisible(true);
                 }
             }
         });
@@ -162,27 +174,144 @@ public class MainFrame extends JFrame {
         inputTF.setWrapStyleWord(true);
         inputTF.setEditable(false);
         inputPanel.add(new JScrollPane(inputTF), BorderLayout.CENTER);
+        //设置文件发送按钮
+        JPanel sendPanel = new JPanel(new BorderLayout());
+        sendFileButton = new JButton("发送文件");
+        sendFileButton.setVisible(false);
+        sendPanel.add(sendFileButton, BorderLayout.WEST);
         //设置发送按钮
         sendButton = new JButton("发送");
         sendButton.setVisible(false);
-        JPanel sendPanel = new JPanel(new BorderLayout());
         sendPanel.add(sendButton, BorderLayout.EAST);
         sendPanel.setBackground(background);
         inputPanel.add(sendPanel, BorderLayout.SOUTH);
-        sendButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String message = inputTF.getText();
-                if (!message.equals("")) {
-                    inputTF.setText("");
-                    chatRecordsPanel.addMessage(ChatRecordsPanel.SELF, message);
-                    sendMessage(currentTalker.getText(), message);
-                }
-            }
-        });
+        //添加监听事件
+        sendFileButton.addActionListener(this);
+        sendButton.addActionListener(this);
+//        sendFileButton.addActionListener(new ActionListener() {
+//            @Override
+//            public void actionPerformed(ActionEvent e) {
+//                JDialog jDialog = new JDialog(sendFileButton, "发送文件", true);
+//            }
+//        });
+        //发送按钮监听事件
+//        sendButton.addActionListener(new ActionListener() {
+//            @Override
+//            public void actionPerformed(ActionEvent e) {
+//                String message = inputTF.getText();
+//                if (!message.equals("")) {
+//                    inputTF.setText("");
+//                    chatRecordsPanel.addMessage(ChatRecordsPanel.SELF, message);
+//                    sendMessage(currentTalker.getText(), message);
+//                }
+//            }
+//        });
 
         inputPanel.setPreferredSize(new Dimension(0, (int) (0.2*HEIGHT)));
         chatPanel.add(inputPanel, BorderLayout.SOUTH);
+    }
+
+    // TODO: 监听事件
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        if (e.getSource() == sendFileButton) {
+            //打开发送文件窗口
+            setFileDialog();
+        } else if (e.getSource() == sendButton) {
+            //发送消息
+            String message = inputTF.getText();
+            if (!message.equals("")) {
+                inputTF.setText("");
+                chatRecordsPanel.addMessage(ChatRecordsPanel.SELF, message);
+                sendMessage(currentTalker.getText(), message);
+            }
+        } else if (e.getSource() == cancel) {
+            //取消发送文件
+            dialog.dispose();
+        } else if (e.getSource() == selectFile) {
+            //选择文件
+            JFileChooser jFileChooser = new JFileChooser();
+            jFileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+            jFileChooser.showDialog(new JLabel(), "选择文件");
+            File file = jFileChooser.getSelectedFile();
+            filePath.setText(file.getAbsolutePath());
+        } else if (e.getSource() == sendFile) {
+            //发送文件
+            System.out.println("发送文件");
+            String path = filePath.getText();
+            File file = new File(path);
+            if (file.exists()) {
+                //文件存在
+                String fileName = file.getName();
+                String fileReceiver = currentTalker.getText();
+                String message = "sendFile\n" + fileReceiver + "\n" + fileName + "\n";
+//                System.out.println("#" + message);
+                sendMessage("System", message);
+                dialog.dispose();
+                Boolean result = FilesTransfer.sendFile(path, currentTalker.getText());
+                if (result) {
+                    JOptionPane.showMessageDialog(null, "发送成功", "提示", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(null, "发送失败", "提示", JOptionPane.ERROR_MESSAGE);
+                }
+            } else {
+                //文件不存在
+                System.out.println("文件不存在");
+            }
+//                    sendMessage("System", "sendFile");
+//            dialog.dispose();
+        } else {
+            System.out.println("Unknown error");
+        }
+    }
+
+    // Private Methods
+    private void setFileDialog() {
+        dialog = new JDialog(this, "选择文件");
+        Container container = dialog.getContentPane();
+        dialog.setBounds(0, 0, 300, 150);
+        dialog.setLocationRelativeTo(null);
+        dialog.setModal(true);
+        dialog.setResizable(false);
+        dialog.setLayout(new BorderLayout());
+        JPanel pathPanel = new JPanel();
+        filePath = new JTextField();
+        filePath.setColumns(20);
+        pathPanel.add(new JLabel("文件目录"));
+        pathPanel.add(filePath);
+        container.add(pathPanel, BorderLayout.NORTH);
+        selectFile = new JButton("选择文件");
+        JPanel selectPanel = new JPanel();
+        selectPanel.add(selectFile);
+        container.add(selectPanel, BorderLayout.CENTER);
+
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setPreferredSize(new Dimension(0, 40));
+
+        cancel = new JButton("取消");
+        sendFile = new JButton("发送");
+        buttonPanel.add(cancel);
+        buttonPanel.add(sendFile);
+        container.add(buttonPanel, BorderLayout.SOUTH);
+
+        //添加监听事件
+        selectFile.addActionListener(this);
+        sendFile.addActionListener(this);
+        cancel.addActionListener(this);
+
+        dialog.setVisible(true);
+    }
+
+    public DatagramSocket getSocket() {
+        return socket;
+    }
+
+    public DefaultListModel<String> getFriends() {
+        return friends;
+    }
+
+    public HashMap<String, ChatRecordsPanel> getChatRecordsPanelHashMap() {
+        return chatRecordsPanelHashMap;
     }
 
     public MainFrame(String username, DatagramSocket socket) {
@@ -196,20 +325,31 @@ public class MainFrame extends JFrame {
         add(usersPanel, BorderLayout.WEST);
         add(chatPanel, BorderLayout.CENTER);
 
-        new Thread(new Receive(this.socket, friends, chatRecordsPanelHashMap)).start();
+        new Thread(new Receive(this)).start();
     }
+
+
 }
 
 class Receive implements Runnable {
     private byte[] buf = new byte[256];
+    private MainFrame mainFrame;
     private DatagramSocket socket;
     private DefaultListModel<String> friends;
     private HashMap<String, ChatRecordsPanel> chatRecordsPanelHashMap;
 
-    public Receive(DatagramSocket socket, DefaultListModel<String> friends, HashMap<String, ChatRecordsPanel> chatRecordsPanelHashMap) {
-        this.socket = socket;
-        this.friends = friends;
-        this.chatRecordsPanelHashMap = chatRecordsPanelHashMap;
+//    public Receive(DatagramSocket socket, DefaultListModel<String> friends, HashMap<String, ChatRecordsPanel> chatRecordsPanelHashMap) {
+//        this.socket = socket;
+//        this.friends = friends;
+//        this.chatRecordsPanelHashMap = chatRecordsPanelHashMap;
+//    }
+
+
+    public Receive(MainFrame mainFrame) {
+        this.mainFrame = mainFrame;
+        socket = mainFrame.getSocket();
+        friends = mainFrame.getFriends();
+        chatRecordsPanelHashMap = mainFrame.getChatRecordsPanelHashMap();
     }
 
     @Override
@@ -222,22 +362,45 @@ class Receive implements Runnable {
                 BufferedReader in = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(packet.getData()), "utf-8"));
                 String sender = in.readLine();
                 String receiver = in.readLine();
-                StringBuffer stringBuffer = new StringBuffer();
-                String line = in.readLine();
-                while (line != null) {
-                    stringBuffer.append(line);
-                    line = in.readLine();
-                    if (line != null) {
-                        stringBuffer.append("\n");
+                if (sender.equals("System")) {
+                    //系统消息
+                    String cmd = in.readLine();
+                    if (cmd.equals("PleaseReceiveFile")) {
+                        //请求接收文件
+                        String fileSender = in.readLine();
+                        String fileName = in.readLine();
+                        System.out.println("fileSender: " + fileSender + " fileName: " + fileName);
+                        if (JOptionPane.showConfirmDialog(null, "接收文件") == JOptionPane.OK_OPTION) {
+
+                            String message = "receiveFile\n" + fileName + "\n";
+                            mainFrame.sendMessage("System", message);
+                        }
+                    } else if (cmd.equals("CanReceiveFile")) {
+                        System.out.println("CanReceiveFile");
+                        String fileName = in.readLine();
+                        String filePath = "E:\\talkFile\\receive\\" + fileName;
+                        System.out.println("filePath: " + filePath);
+
+                        FilesTransfer.receiveFile(filePath, InetAddress.getLocalHost());
                     }
-                }
-                System.out.println(stringBuffer);
-                chatRecordsPanelHashMap.get(sender).addMessage(ChatRecordsPanel.OTHER, stringBuffer.toString());
-                int index = 0;
-                while (index < friends.size() && !friends.getElementAt(index).equals(sender)) { ++index; }
-                if (friends.getElementAt(index).equals(sender)) {
-                    friends.remove(index);
-                    friends.add(0, sender);
+                } else {
+                    StringBuffer stringBuffer = new StringBuffer();
+                    String line = in.readLine();
+                    while (line != null) {
+                        stringBuffer.append(line);
+                        line = in.readLine();
+                        if (line != null) {
+                            stringBuffer.append("\n");
+                        }
+                    }
+                    System.out.println(stringBuffer);
+                    chatRecordsPanelHashMap.get(sender).addMessage(ChatRecordsPanel.OTHER, stringBuffer.toString());
+                    int index = 0;
+                    while (index < friends.size() && !friends.getElementAt(index).equals(sender)) { ++index; }
+                    if (friends.getElementAt(index).equals(sender)) {
+                        friends.remove(index);
+                        friends.add(0, sender);
+                    }
                 }
             }
         } catch (IOException e) {

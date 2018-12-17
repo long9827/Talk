@@ -1,12 +1,15 @@
 package server;
 
+import common.FilesTransfer;
 import common.Message;
 
 import java.io.*;
 import java.net.*;
+import java.nio.file.attribute.FileTime;
 import java.util.*;
 
 public class QuoteServerThread extends Thread {
+    private static String SAVEDFILESPATH = "E:\\talkFile";
     private HashMap<String, Client> clients = new HashMap<String, Client>();
     private DatagramSocket socket = null;
     private boolean moreQuotes = true;
@@ -33,6 +36,7 @@ public class QuoteServerThread extends Thread {
                 BufferedReader in = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(packet.getData()), "utf-8"));
                 String sender = in.readLine();
                 String receiver = in.readLine();
+                System.out.println("handle message");
                 if (receiver.equals("System")) {
                     //系统消息
                     String message = in.readLine();
@@ -57,6 +61,36 @@ public class QuoteServerThread extends Thread {
                     } else if (message.equals("logout")) {
                         System.out.println(sender + " logout");
                         clients.remove(sender);
+                    } else if (message.equals("sendFile")) {
+                        //请求发送文件
+                        System.out.println("sendFile");
+                        String fileReceiver = in.readLine();
+                        String fileName = in.readLine();
+                        System.out.println("fileReceiver: " + fileReceiver);
+                        System.out.println("fileName: " + fileName);
+                        Boolean result = FilesTransfer.receiveFile(SAVEDFILESPATH + "\\" + fileName, packet.getAddress());
+                        if (result) {
+                            //接收成功
+                            String string = "PleaseReceiveFile\n" + sender + "\n" + fileName + "\n";
+                            Message msg = new Message("System", fileReceiver, string);
+                            synchronized (notSendMessages) {
+                                System.out.println(string + msg.toString());
+                                notSendMessages.put(msg.hashCode(), msg);
+                            }
+                        }
+                    } else if (message.equals("receiveFile")) {
+                        //发送文件
+                        String fileName = in.readLine();
+                        System.out.println("will send file: " + fileName);
+                        String string = "CanReceiveFile\n" + fileName + "\n";
+                        Message msg = new Message("System", sender, string);
+                        synchronized (notSendMessages) {
+                            notSendMessages.put(msg.hashCode(), msg);
+                        }
+                        FilesTransfer.sendFile(SAVEDFILESPATH + "\\" + fileName, sender);
+
+                    } else {
+                        System.out.println("Unknown Error");
                     }
 //                    System.out.println("sender null");
                     continue;
@@ -154,7 +188,7 @@ class Send implements Runnable {
 
             while (true) {
                 synchronized (notSendMessages) {
-                    System.out.println("未处理消息：" + notSendMessages.size() + "条");
+//                    System.out.println("未处理消息：" + notSendMessages.size() + "条");
                     HashSet<Integer> all = new HashSet<>(notSendMessages.keySet());
                     HashSet<Integer> remove = new HashSet<>();
 //                    ListIterator<Message> iterator = notSendMessages.listIterator();
