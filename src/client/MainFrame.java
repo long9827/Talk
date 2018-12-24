@@ -19,10 +19,12 @@ public class MainFrame extends JFrame implements ActionListener {
     static private final int HEIGHT = 500;
 
     private DatagramSocket socket;
+    private InetAddress serverAddress;
     private String username;
     private DefaultListModel<String> friends;
 
     private JList<String> userList;
+    private MyRenderer myRenderer;
     private JPanel usersPanel;
     private JPanel chatPanel;
     private JLabel currentTalker;
@@ -38,19 +40,35 @@ public class MainFrame extends JFrame implements ActionListener {
     private JButton selectFile;
     private JButton sendFile;
     private JTextField filePath;
+    //进度条
+    private JProgressBar progressBar;
+
+    //接收文件
+    private JDialog pathDialog;
+    private JButton selectPath;
+    private JButton receiveFile;
+    private JTextField rfPath;
+    private String fileName;
+    //进度条
+    private JProgressBar receiveBar;
 
     private HashMap<String, ChatRecordsPanel> chatRecordsPanelHashMap = new HashMap<>();
 
     //TODO：初始化联系人列表
     private void initUsers() {
-//        int random = (int) (Math.random()*500 + 1);
         int random = 20;
         for (int i=0; i<random; ++i) {
             String name = "user" + (i+1);
+            if (name.equals(username)) {
+                continue;
+            }
             friends.addElement(name);
             chatRecordsPanelHashMap.put(name, new ChatRecordsPanel());
         }
         userList.setModel(friends);
+        myRenderer = new MyRenderer(Color.red);
+        userList.setCellRenderer(myRenderer);
+//        myRenderer.addRow(5);
     }
 
     //TODO：发送消息
@@ -58,10 +76,9 @@ public class MainFrame extends JFrame implements ActionListener {
         try {
             String string = username + "\n" + receiver + "\n" + message;
             byte[] buf = string.getBytes("utf-8");
-            InetAddress address = InetAddress.getLocalHost();
-            DatagramPacket packet = new DatagramPacket(buf, buf.length, address, 4445);
+//            InetAddress address = InetAddress.getLocalHost();
+            DatagramPacket packet = new DatagramPacket(buf, buf.length, serverAddress, 4445);
             socket.send(packet);
-
         }catch (Exception e) {
             e.printStackTrace();
         }
@@ -122,6 +139,8 @@ public class MainFrame extends JFrame implements ActionListener {
             @Override
             public void valueChanged(ListSelectionEvent e) {
                 if (userList.getValueIsAdjusting()) {
+                    int index = userList.getSelectedIndex();
+                    myRenderer.removeRow(index);
                     String talker = userList.getSelectedValue();
                     currentTalker.setText(talker);
                     if (chatRecordsPanelHashMap.get(talker) == null) {
@@ -188,24 +207,6 @@ public class MainFrame extends JFrame implements ActionListener {
         //添加监听事件
         sendFileButton.addActionListener(this);
         sendButton.addActionListener(this);
-//        sendFileButton.addActionListener(new ActionListener() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                JDialog jDialog = new JDialog(sendFileButton, "发送文件", true);
-//            }
-//        });
-        //发送按钮监听事件
-//        sendButton.addActionListener(new ActionListener() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                String message = inputTF.getText();
-//                if (!message.equals("")) {
-//                    inputTF.setText("");
-//                    chatRecordsPanel.addMessage(ChatRecordsPanel.SELF, message);
-//                    sendMessage(currentTalker.getText(), message);
-//                }
-//            }
-//        });
 
         inputPanel.setPreferredSize(new Dimension(0, (int) (0.2*HEIGHT)));
         chatPanel.add(inputPanel, BorderLayout.SOUTH);
@@ -237,7 +238,6 @@ public class MainFrame extends JFrame implements ActionListener {
             filePath.setText(file.getAbsolutePath());
         } else if (e.getSource() == sendFile) {
             //发送文件
-            System.out.println("发送文件");
             String path = filePath.getText();
             File file = new File(path);
             if (file.exists()) {
@@ -245,21 +245,39 @@ public class MainFrame extends JFrame implements ActionListener {
                 String fileName = file.getName();
                 String fileReceiver = currentTalker.getText();
                 String message = "sendFile\n" + fileReceiver + "\n" + fileName + "\n";
-//                System.out.println("#" + message);
                 sendMessage("System", message);
-                dialog.dispose();
-                Boolean result = FilesTransfer.sendFile(path, currentTalker.getText());
-                if (result) {
-                    JOptionPane.showMessageDialog(null, "发送成功", "提示", JOptionPane.INFORMATION_MESSAGE);
-                } else {
-                    JOptionPane.showMessageDialog(null, "发送失败", "提示", JOptionPane.ERROR_MESSAGE);
-                }
+                new FilesTransfer.SendThread(path, this).start();
+                selectFile.setVisible(false);
+                cancel.setVisible(false);
+                sendFile.setVisible(false);
+                progressBar.setVisible(true);
             } else {
                 //文件不存在
-                System.out.println("文件不存在");
+                JOptionPane.showMessageDialog(null, "文件不存在", "提示", JOptionPane.ERROR_MESSAGE);
             }
-//                    sendMessage("System", "sendFile");
-//            dialog.dispose();
+        } else if (e.getSource() == selectPath) {
+            //选择文件存放目录
+            JFileChooser jFileChooser = new JFileChooser();
+            jFileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            jFileChooser.showDialog(new JLabel(), "选择目录");
+            File file = jFileChooser.getSelectedFile();
+            String savePath = file.getAbsolutePath() + fileName;
+            rfPath.setText(file.getAbsolutePath());
+        } else if (e.getSource() == receiveFile) {
+            String path = rfPath.getText();
+            if (path.equals("")) {
+                //默认路径
+                path = "E:\\talkFile\\receive";
+            }
+            try {
+                receiveBar.setVisible(true);
+                receiveFile.setVisible(false);
+                selectPath.setVisible(false);
+//                new FilesTransfer.ReceiveThread(path + "\\" + fileName, InetAddress.getLocalHost(), this).start();
+                new FilesTransfer.ReceiveThread(path, serverAddress, this).start();
+            } catch (Exception ee) {
+                ee.printStackTrace();
+            }
         } else {
             System.out.println("Unknown error");
         }
@@ -277,6 +295,7 @@ public class MainFrame extends JFrame implements ActionListener {
         JPanel pathPanel = new JPanel();
         filePath = new JTextField();
         filePath.setColumns(20);
+        filePath.setEditable(false);
         pathPanel.add(new JLabel("文件目录"));
         pathPanel.add(filePath);
         container.add(pathPanel, BorderLayout.NORTH);
@@ -285,14 +304,21 @@ public class MainFrame extends JFrame implements ActionListener {
         selectPanel.add(selectFile);
         container.add(selectPanel, BorderLayout.CENTER);
 
+        JPanel pBarandBtn = new JPanel(new BorderLayout());
+        pBarandBtn.setPreferredSize(new Dimension(0, 50));
+        progressBar = new JProgressBar(0, 10000);
+        progressBar.setVisible(false);
+        pBarandBtn.add(progressBar, BorderLayout.NORTH);
+
         JPanel buttonPanel = new JPanel();
-        buttonPanel.setPreferredSize(new Dimension(0, 40));
 
         cancel = new JButton("取消");
         sendFile = new JButton("发送");
         buttonPanel.add(cancel);
         buttonPanel.add(sendFile);
-        container.add(buttonPanel, BorderLayout.SOUTH);
+
+        pBarandBtn.add(buttonPanel, BorderLayout.SOUTH);
+        container.add(pBarandBtn, BorderLayout.SOUTH);
 
         //添加监听事件
         selectFile.addActionListener(this);
@@ -300,6 +326,60 @@ public class MainFrame extends JFrame implements ActionListener {
         cancel.addActionListener(this);
 
         dialog.setVisible(true);
+    }
+
+    void selectPathDialog(String fileName) {
+        this.fileName = fileName;
+        pathDialog = new JDialog(this, "选择目录");
+        Container container = pathDialog.getContentPane();
+        pathDialog.setBounds(0, 0, 300, 150);
+        pathDialog.setLocationRelativeTo(null);
+        pathDialog.setModal(true);
+        pathDialog.setResizable(false);
+        pathDialog.setLayout(new BorderLayout());
+//        pathDialog.setDefaultCloseOperation(Window.);
+
+        JPanel pathPanel = new JPanel();
+        rfPath = new JTextField();
+        rfPath.setColumns(20);
+        rfPath.setEditable(false);
+        rfPath.setText("E:\\talkFile\\receive");
+
+        pathPanel.add(new JLabel("保存目录"));
+        pathPanel.add(rfPath);
+        container.add(pathPanel, BorderLayout.NORTH);
+        selectPath = new JButton("选择目录");
+        JPanel selectPanel = new JPanel();
+        selectPanel.add(selectPath);
+        container.add(selectPanel, BorderLayout.CENTER);
+
+        JPanel pBarandBtn = new JPanel(new BorderLayout());
+        pBarandBtn.setPreferredSize(new Dimension(0, 50));
+        receiveBar = new JProgressBar(0, 10000);
+        receiveBar.setVisible(false);
+        pBarandBtn.add(receiveBar, BorderLayout.NORTH);
+
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setPreferredSize(new Dimension(0, 40));
+
+        receiveFile = new JButton("接收");
+        buttonPanel.add(receiveFile);
+
+        pBarandBtn.add(buttonPanel, BorderLayout.SOUTH);
+        container.add(pBarandBtn, BorderLayout.SOUTH);
+
+        //添加监听事件
+        selectPath.addActionListener(this);
+        receiveFile.addActionListener(this);
+        pathDialog.setVisible(true);
+    }
+
+    public void dialogDispose() {
+        dialog.dispose();
+    }
+
+    public void receiveDialogDispose() {
+        pathDialog.dispose();
     }
 
     public DatagramSocket getSocket() {
@@ -314,10 +394,23 @@ public class MainFrame extends JFrame implements ActionListener {
         return chatRecordsPanelHashMap;
     }
 
-    public MainFrame(String username, DatagramSocket socket) {
+    public JProgressBar getProgressBar() {
+        return progressBar;
+    }
+
+    public JProgressBar getReceiveBar() {
+        return receiveBar;
+    }
+
+    public MyRenderer getMyRenderer() {
+        return myRenderer;
+    }
+
+    public MainFrame(String username, InetAddress serverAddress, DatagramSocket socket) {
         this.friends =  new DefaultListModel<>();
         this.socket = socket;
         this.username = username;
+        this.serverAddress = serverAddress;
         initMainFrame();
         setUserListPanel();
         setChatPanel();
@@ -327,8 +420,6 @@ public class MainFrame extends JFrame implements ActionListener {
 
         new Thread(new Receive(this)).start();
     }
-
-
 }
 
 class Receive implements Runnable {
@@ -337,13 +428,6 @@ class Receive implements Runnable {
     private DatagramSocket socket;
     private DefaultListModel<String> friends;
     private HashMap<String, ChatRecordsPanel> chatRecordsPanelHashMap;
-
-//    public Receive(DatagramSocket socket, DefaultListModel<String> friends, HashMap<String, ChatRecordsPanel> chatRecordsPanelHashMap) {
-//        this.socket = socket;
-//        this.friends = friends;
-//        this.chatRecordsPanelHashMap = chatRecordsPanelHashMap;
-//    }
-
 
     public Receive(MainFrame mainFrame) {
         this.mainFrame = mainFrame;
@@ -355,6 +439,7 @@ class Receive implements Runnable {
     @Override
     public void run() {
         try {
+            socket.setSoTimeout(0);
             while (true) {
                 DatagramPacket packet = new DatagramPacket(buf, buf.length);
                 socket.receive(packet);
@@ -370,7 +455,8 @@ class Receive implements Runnable {
                         String fileSender = in.readLine();
                         String fileName = in.readLine();
                         System.out.println("fileSender: " + fileSender + " fileName: " + fileName);
-                        if (JOptionPane.showConfirmDialog(null, "接收文件") == JOptionPane.OK_OPTION) {
+                        String string = fileSender + "发送文件：" + fileName;
+                        if (JOptionPane.showConfirmDialog(null, string, "是否接收", JOptionPane.YES_NO_OPTION) == JOptionPane.OK_OPTION) {
 
                             String message = "receiveFile\n" + fileName + "\n";
                             mainFrame.sendMessage("System", message);
@@ -378,10 +464,7 @@ class Receive implements Runnable {
                     } else if (cmd.equals("CanReceiveFile")) {
                         System.out.println("CanReceiveFile");
                         String fileName = in.readLine();
-                        String filePath = "E:\\talkFile\\receive\\" + fileName;
-                        System.out.println("filePath: " + filePath);
-
-                        FilesTransfer.receiveFile(filePath, InetAddress.getLocalHost());
+                        mainFrame.selectPathDialog(fileName);
                     }
                 } else {
                     StringBuffer stringBuffer = new StringBuffer();
@@ -393,13 +476,13 @@ class Receive implements Runnable {
                             stringBuffer.append("\n");
                         }
                     }
-                    System.out.println(stringBuffer);
                     chatRecordsPanelHashMap.get(sender).addMessage(ChatRecordsPanel.OTHER, stringBuffer.toString());
                     int index = 0;
                     while (index < friends.size() && !friends.getElementAt(index).equals(sender)) { ++index; }
                     if (friends.getElementAt(index).equals(sender)) {
                         friends.remove(index);
                         friends.add(0, sender);
+                        mainFrame.getMyRenderer().setColor(index);
                     }
                 }
             }

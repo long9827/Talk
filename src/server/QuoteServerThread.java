@@ -5,18 +5,21 @@ import common.Message;
 
 import java.io.*;
 import java.net.*;
-import java.nio.file.attribute.FileTime;
 import java.util.*;
 
 public class QuoteServerThread extends Thread {
-    private static String SAVEDFILESPATH = "E:\\talkFile";
+    public static String SAVEDFILESPATH = "D:\\JavaTalkTmp";
     private HashMap<String, Client> clients = new HashMap<String, Client>();
-    private DatagramSocket socket = null;
+    private DatagramSocket socket;
     private boolean moreQuotes = true;
     private HashMap<Integer,Message> notSendMessages;
 
     public QuoteServerThread() throws IOException {
         this("QuoteServerThread");
+        File dir = new File(SAVEDFILESPATH);
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
     }
 
     public QuoteServerThread(String name) throws IOException {
@@ -33,98 +36,7 @@ public class QuoteServerThread extends Thread {
                 byte[] buf = new byte[256];
                 DatagramPacket packet = new DatagramPacket(buf, buf.length);
                 socket.receive(packet);
-                BufferedReader in = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(packet.getData()), "utf-8"));
-                String sender = in.readLine();
-                String receiver = in.readLine();
-                System.out.println("handle message");
-                if (receiver.equals("System")) {
-                    //系统消息
-                    String message = in.readLine();
-                    if (message.equals("login")) {
-                        //请求登录
-                        String string;
-                        synchronized (clients) {
-                            if (clients.get(sender) == null) {
-                                //未登录
-                                clients.put(sender, new Client(sender, packet.getAddress(), packet.getPort()));
-                                System.out.println(sender + " login");
-                                string = "System\n" + sender + "\n" + "true\n";
-                            } else {
-                                //已登录
-                                string = "System\n" + sender + "\n" + "false\n";
-                            }
-                        }
-                        buf = string.getBytes();
-                        DatagramPacket tmp = new DatagramPacket(buf, buf.length, packet.getAddress(), packet.getPort());
-                        socket.send(tmp);
-//                        socket.send(packet);
-                    } else if (message.equals("logout")) {
-                        System.out.println(sender + " logout");
-                        clients.remove(sender);
-                    } else if (message.equals("sendFile")) {
-                        //请求发送文件
-                        System.out.println("sendFile");
-                        String fileReceiver = in.readLine();
-                        String fileName = in.readLine();
-                        System.out.println("fileReceiver: " + fileReceiver);
-                        System.out.println("fileName: " + fileName);
-                        Boolean result = FilesTransfer.receiveFile(SAVEDFILESPATH + "\\" + fileName, packet.getAddress());
-                        if (result) {
-                            //接收成功
-                            String string = "PleaseReceiveFile\n" + sender + "\n" + fileName + "\n";
-                            Message msg = new Message("System", fileReceiver, string);
-                            synchronized (notSendMessages) {
-                                System.out.println(string + msg.toString());
-                                notSendMessages.put(msg.hashCode(), msg);
-                            }
-                        }
-                    } else if (message.equals("receiveFile")) {
-                        //发送文件
-                        String fileName = in.readLine();
-                        System.out.println("will send file: " + fileName);
-                        String string = "CanReceiveFile\n" + fileName + "\n";
-                        Message msg = new Message("System", sender, string);
-                        synchronized (notSendMessages) {
-                            notSendMessages.put(msg.hashCode(), msg);
-                        }
-                        FilesTransfer.sendFile(SAVEDFILESPATH + "\\" + fileName, sender);
-
-                    } else {
-                        System.out.println("Unknown Error");
-                    }
-//                    System.out.println("sender null");
-                    continue;
-                } else {    //非系统消息
-                    //提取信息
-                    StringBuffer stringBuffer = new StringBuffer();
-                    String line;
-                    while ((line=in.readLine()) != null) {
-//                    System.out.println("#" + line  +"#");
-                        stringBuffer.append(line);
-                        stringBuffer.append("\n");
-                    }
-                    System.out.println(stringBuffer);
-                    //添加到未发送消息
-                    synchronized (notSendMessages) {
-                        Message message = new Message(sender, receiver, stringBuffer.toString());
-                        notSendMessages.put(message.hashCode(), message);
-                    }
-                }
-//                stringBuffer.append("end");
-//                System.out.println();
-//                Client receiverClient = client.get(receiver);
-//                if (receiverClient == null) {
-////                    System.out.println("receiver null");
-//                    String string = "System: " +  receiver + " not found!\n";
-//                    buf = string.getBytes();
-//                    packet = new DatagramPacket(buf, buf.length, client.get(sender).getAddress(), client.get(sender).getPort());
-//                    socket.send(packet);
-//                } else {
-//                    String string = sender + ": " + message;
-//                    buf = string.getBytes();
-//                    packet = new DatagramPacket(buf, buf.length, receiverClient.getAddress(), receiverClient.getPort());
-//                    socket.send(packet);
-//                }
+                new HandleMessageThread(packet, clients, socket, notSendMessages).start();
             }catch (IOException e) {
                 e.printStackTrace();
                 moreQuotes = false;
@@ -158,8 +70,103 @@ class Client {
     }
 }
 
+class HandleMessageThread extends Thread {
+    private DatagramPacket packet;
+    private HashMap<String, Client> clients;
+    private DatagramSocket socket;
+    private HashMap<Integer,Message> notSendMessages;
+
+    public HandleMessageThread(DatagramPacket packet, HashMap<String, Client> clients, DatagramSocket socket, HashMap<Integer, Message> notSendMessages) {
+        this.packet = packet;
+        this.clients = clients;
+        this.socket = socket;
+        this.notSendMessages = notSendMessages;
+    }
+
+    @Override
+    public void run() {
+        try {
+            byte[] buf;
+            BufferedReader in = new BufferedReader(new InputStreamReader(new ByteArrayInputStream(packet.getData()), "utf-8"));
+            String sender = in.readLine();
+            String receiver = in.readLine();
+//            System.out.println("handle message");
+            if (receiver.equals("System")) {
+                //系统消息
+                String message = in.readLine();
+                if (message.equals("login")) {
+                    //请求登录
+                    String string;
+                    synchronized (clients) {
+                        if (clients.get(sender) == null) {
+                            //未登录
+                            clients.put(sender, new Client(sender, packet.getAddress(), packet.getPort()));
+                            System.out.println(sender + " login");
+                            string = "System\n" + sender + "\n" + "true\n";
+                        } else {
+                            //已登录
+                            string = "System\n" + sender + "\n" + "false\n";
+                        }
+                    }
+                    buf = string.getBytes();
+                    DatagramPacket tmp = new DatagramPacket(buf, buf.length, packet.getAddress(), packet.getPort());
+                    socket.send(tmp);
+                } else if (message.equals("logout")) {
+                    System.out.println(sender + " logout");
+                    clients.remove(sender);
+                } else if (message.equals("sendFile")) {
+                    //请求发送文件
+//                    System.out.println("sendFile");
+                    String fileReceiver = in.readLine();
+                    String fileName = in.readLine();
+//                    System.out.println("fileReceiver: " + fileReceiver);
+//                    System.out.println("fileName: " + fileName);
+                    //Thread
+                    Boolean result = FilesTransfer.receiveFile(QuoteServerThread.SAVEDFILESPATH, packet.getAddress(), null);
+                    if (result) {
+                        //接收成功
+                        String string = "PleaseReceiveFile\n" + sender + "\n" + fileName + "\n";
+                        Message msg = new Message("System", fileReceiver, string);
+                        synchronized (notSendMessages) {
+//                            System.out.println(string + msg.toString());
+                            notSendMessages.put(msg.hashCode(), msg);
+                        }
+                    }
+                } else if (message.equals("receiveFile")) {
+                    //发送文件
+                    String fileName = in.readLine();
+//                    System.out.println("will send file: " + fileName);
+                    String string = "CanReceiveFile\n" + fileName + "\n";
+                    Message msg = new Message("System", sender, string);
+                    synchronized (notSendMessages) {
+                        notSendMessages.put(msg.hashCode(), msg);
+                    }
+                    new FilesTransfer.SendThread(QuoteServerThread.SAVEDFILESPATH + "\\" + fileName, null).start();
+                } else {
+                    System.out.println("Unknown Error");
+                }
+            } else {    //非系统消息
+                //提取信息
+                StringBuffer stringBuffer = new StringBuffer();
+                String line;
+                while ((line=in.readLine()) != null) {
+//                    System.out.println("#" + line  +"#");
+                    stringBuffer.append(line);
+                    stringBuffer.append("\n");
+                }
+                //添加到未发送消息
+                synchronized (notSendMessages) {
+                    Message message = new Message(sender, receiver, stringBuffer.toString());
+                    notSendMessages.put(message.hashCode(), message);
+                }
+            }
+        }catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
 class Send implements Runnable {
-//    private String name;
     private DatagramSocket socket;
     private byte[] buf = new byte[256];
     private HashMap<Integer, Message> notSendMessages;
@@ -172,101 +179,42 @@ class Send implements Runnable {
         this.clients = clients;
     }
 
-    //    public Send(String name, DatagramSocket socket) {
-////        this.name = name;
-//        this.socket = socket;
-//    }
 
     @Override
     public void run(){
         try {
-//            String message = name + "\nSystem\nlogin\n";
-//            buf = message.getBytes();
-//            InetAddress address = InetAddress.getLocalHost();
-//            DatagramPacket packet = new DatagramPacket(buf, buf.length, address, 4445);
-//            socket.send(packet);
-
             while (true) {
                 synchronized (notSendMessages) {
 //                    System.out.println("未处理消息：" + notSendMessages.size() + "条");
                     HashSet<Integer> all = new HashSet<>(notSendMessages.keySet());
                     HashSet<Integer> remove = new HashSet<>();
-//                    ListIterator<Message> iterator = notSendMessages.listIterator();
-//                    Message current;
-//                    ArrayList<Integer> removeIndex = new ArrayList<>();
-//                    int index=0;
                     for (Integer key:all) {
                         Message current = notSendMessages.get(key);
                         synchronized (clients) {
-//                            String receiver = current.getReceiver();
-//                            System.out.println("2current: "+ index + current.toString());
                             Client receiver = clients.get(current.getReceiver());
                             if (receiver != null) {
                                 //接收者在线
-//                                System.out
-//                                System.out.println("接收者：" + receiver.getName() + "地址：" + receiver.getAddress() + "端口：" +receiver.getPort() );
                                 try {
-//                                    System.out.println(current.toString());
                                     buf = current.toString().getBytes("utf-8");
-//                                    System.out.println("buf: " + buf.toString());
-//                                    System.out.println("打印默认编码：" + current.toString().getBytes());
-//                                    System.out.println("打印unicode编码：" + current.toString().getBytes("unicode"));
-//                                    System.out.println("打印utf-8编码：" + current.toString().getBytes("utf-8"));
-
                                 }catch (Exception e) {
                                     e.printStackTrace();
                                 }
                                 packet = new DatagramPacket(buf, buf.length, receiver.getAddress(), receiver.getPort());
                                 socket.send(packet);
                                 remove.add(key);
-//                                removeIndex.add(index);
-//                                receiver = null;
                             }
                         }
-
                     }
-//                    while (iterator.hasNext()) {
-//                        current = iterator.next();
-//                        System.out.println("current: "+ index + current.toString());
-//                        synchronized (clients) {
-////                            String receiver = current.getReceiver();
-////                            System.out.println("2current: "+ index + current.toString());
-//                            Client receiver = clients.get(current.getReceiver());
-//                            if (receiver != null) {
-//                                //接收者在线
-////                                System.out
-//                                System.out.println("接收者：" + receiver.getName() + "地址：" + receiver.getAddress() + "端口：" +receiver.getPort() );
-//                                buf = current.toString().getBytes();
-//                                packet = new DatagramPacket(buf, buf.length, receiver.getAddress(), receiver.getPort());
-//                                socket.send(packet);
-//                                removeIndex.add(index);
-////                                receiver = null;
-//                            }
-//                        }
-//                        index++;
-//                    }
                     //移除已发送消息
                     for (Integer key:remove) {
                         notSendMessages.remove(key);
                     }
-//                    for (int i=removeIndex.size()-1; i>=0; --i) {
-//                        System.out.println(removeIndex.get(i));
-//                        notSendMessages.remove(removeIndex.get(i));
-//                    }
                 }
-                try {
-//                    System.out.println("开始休眠");
-                    Thread.sleep(500);
-//                    System.out.println("休眠结束");
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-//                BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
-//                message = name + "\n" + in.readLine() + "\n" + in.readLine() + "\n";
-////                System.out.println("#" + message + "#");
-//                buf = message.getBytes();
-//                packet = new DatagramPacket(buf, buf.length, address, 4445);
-//                socket.send(packet);
+//                try {
+//                    Thread.sleep(10);
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                }
             }
         } catch (IOException e) {
             e.printStackTrace();

@@ -6,67 +6,54 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
 public class Test extends JFrame {
-    private JButton refresh = new JButton("refresh");
-    private JPanel jPanelList;
-    private JScrollPane scrollPane;
-    private int i = 0;
 
-
-    private void scrollToEnd() {
-        Point p = new Point();
-        p.setLocation(0, jPanelList.getHeight() + 500);
-        scrollPane.getViewport().setViewPosition(p);
-    }
 
     public Test() {
         setSize(500, 400);
         setLocationRelativeTo(null);    //居中
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 
+        JProgressBar progressBar = new JProgressBar();
+        progressBar.setMinimum(0);
+        progressBar.setMaximum(100);
 
-        jPanelList = new JPanel();
-        jPanelList.setLayout(new BoxLayout(jPanelList, BoxLayout.Y_AXIS));
-        for (int k=0; k<20; ++k) {
-            jPanelList.add(Box.createVerticalGlue());
-        }
-//        jPanelList.add(Box.createVerticalGlue());
-//        jPanelList.add(Box.createVerticalStrut(50));
-        scrollPane = new JScrollPane(jPanelList);
-        add(scrollPane, BorderLayout.CENTER);
+        JDialog progressDialog;
+        progressDialog = new JDialog(this, "进度条");
+        Container container = progressDialog.getContentPane();
+        progressDialog.setBounds(0, 0, 300, 150);
+        progressDialog.setLocationRelativeTo(null);
+        progressDialog.setModal(true);
+        progressDialog.setResizable(false);
+        progressDialog.setLayout(new BorderLayout());
+        container.add(progressBar, BorderLayout.CENTER);
+        progressBar.setValue(50);
+        new ProgressThread(progressBar).start();
 
-
-        JPanel tmp = new JPanel();
-        tmp.add(refresh);
-        add(tmp, BorderLayout.EAST);
-
-        refresh.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-
-                System.out.println("begin: " + jPanelList.getHeight());
-//                scrollPane.add(new JLabel("refresh"));
-                JPanel tmp = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-                JTextArea jTextArea = new JTextArea();
-                jTextArea.setText("Panel\nLabel\nPanel\nLabel\nPanel\nLabel\n" + ++i);
-                jTextArea.setEditable(false);
-                tmp.add(jTextArea);
-                tmp.setBackground(new Color((int) (Math.random()*255), (int) (Math.random()*255), (int) (Math.random()*255)));
-                jPanelList.add(tmp);
-                jPanelList.add(Box.createVerticalStrut(5));
-//                jPanelList.updateUI();
-//                jPanelList.repaint();
-
-                scrollToEnd();
-
-
-
-                System.out.println("end: " + jPanelList.getHeight());
-            }
-        });
-        System.out.println(jPanelList.getHeight());
+        progressDialog.setVisible(true);
     }
 
     public static void main(String[] args) {
         new Test().setVisible(true);
+    }
+}
+
+class ProgressThread extends Thread {
+
+    JProgressBar progressBar;
+
+    public ProgressThread(JProgressBar progressBar) {
+        this.progressBar = progressBar;
+    }
+
+    @Override
+    public void run() {
+        for (int i=1; i<90; ++i) {
+            try {
+                sleep(1000);
+                progressBar.setValue(i);
+            }catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
